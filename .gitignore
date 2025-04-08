@@ -1,0 +1,11 @@
+# virtual environment
+.venv/
+
+# model checkpoints
+*.pth
+
+# dataset
+data/
+
+# macOS system file
+.DS_Store
