@@ -1,11 +1,20 @@
+import os
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
-import time
+from torch.utils.data import DataLoader, DistributedSampler
 
-# define a simple 2D CNN
+def setup(rank, world_size, master_addr, master_port):
+    os.environ['MASTER_ADDR'] = master_addr
+    os.environ['MASTER_PORT'] = master_port
+    dist.init_process_group("gloo", rank=rank, world_size=world_size)
+
+def cleanup():
+    dist.destroy_process_group()
+
 class SimpleCNN(nn.Module):
     def __init__(self):
         super().__init__()
@@ -27,46 +36,41 @@ class SimpleCNN(nn.Module):
     def forward(self, x):
         return self.fc(self.conv(x))
 
-# load dataset
-transform = transforms.ToTensor()
-train_data = datasets.FashionMNIST(root='data', train=True, transform=transform, download=True)
-train_data_loader = DataLoader(train_data, batch_size=64, shuffle=True)
+def train(rank, world_size):
+    setup(rank, world_size, master_addr="20.81.150.5", master_port="29500")  # update with real IP and port
 
-# model, device, loss, optimizer
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = SimpleCNN().to(device)
-loss_fn = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-start_time = time.time()
-for epoch in range(1):
+    transform = transforms.ToTensor()
+    dataset = datasets.FashionMNIST(root='data', train=True, transform=transform, download=True)
+    sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
+    dataloader = DataLoader(dataset, batch_size=64, sampler=sampler)
+
+    model = SimpleCNN().to(device)
+    model = DDP(model)
+
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
     model.train()
-    total_loss = 0
-    num_batches = len(train_data_loader)
+    for epoch in range(1):
+        sampler.set_epoch(epoch)
+        total_loss = 0
+        for batch, (images, labels) in enumerate(dataloader):
+            images, labels = images.to(device), labels.to(device)
+            optimizer.zero_grad()
+            output = model(images)
+            loss = loss_fn(output, labels)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
 
-    print(f"\n[Epoch {epoch+1}] Training started...")
+        print(f"[Rank {rank}] Epoch {epoch+1} Loss: {total_loss:.4f}")
 
-    batch_start_time = time.time()
-    for batch_idx, (images, labels) in enumerate(train_data_loader):
-        images, labels = images.to(device), labels.to(device)
+    cleanup()
 
-        optimizer.zero_grad()
-        output = model(images)
-        loss = loss_fn(output, labels)
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item()
-
-        # print batch info every 100 batches
-        if (batch_idx + 1) % 100 == 0 or (batch_idx + 1) == num_batches:
-            elapsed = time.time() - batch_start_time
-            print(f"  Batch {batch_idx+1}/{num_batches} - Loss: {loss.item():.4f} - Time: {elapsed:.2f}s")
-            batch_start_time = time.time()
-
-epoch_time = time.time() - start_time
-print(f"\nEpoch completed in {epoch_time:.2f} seconds. Total loss: {total_loss:.4f}")
-
-# save model
-torch.save(model.state_dict(), "simpleCNN.pth")
-print("Model saved as simpleCNN.pth")
+if __name__ == "__main__":
+    import sys
+    rank = int(sys.argv[1])  # 0 for master node, 1 for worker node
+    world_size = 2
+    train(rank, world_size)
