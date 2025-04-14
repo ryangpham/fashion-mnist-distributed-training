@@ -7,6 +7,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
+import time
 
 # setup and cleanup for distributed training
 def setup(rank, world_size):
@@ -50,6 +51,8 @@ class SimpleCNN(nn.Module):
 
 # training model
 def train(rank, world_size):
+    if rank == 1:
+        time.sleep(10)
     setup(rank, world_size)
     torch.manual_seed(0)
 
