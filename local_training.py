@@ -1,22 +1,31 @@
 import os
+import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
-from torch.nn.parallel import DistributedDataParallel as DDP
 
+# setup and cleanup for distributed training
 def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = '20.81.150.5'  # IP of master node
+    os.environ['MASTER_ADDR'] = '20.81.150.5'
     os.environ['MASTER_PORT'] = '29500'
+
     print(f"[Rank {rank}] Setting up process group...")
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)
-    print("ok")
+    dist.init_process_group(
+        backend="gloo",
+        rank=rank,
+        world_size=world_size,
+        timeout=datetime.timedelta(seconds=60)
+    )
+    print(f"[Rank {rank}] Process group initialized.")
 
 def cleanup():
     dist.destroy_process_group()
 
+# defining model
 class SimpleCNN(nn.Module):
     def __init__(self):
         super().__init__()
@@ -38,22 +47,29 @@ class SimpleCNN(nn.Module):
     def forward(self, x):
         return self.fc(self.conv(x))
 
+# training model
 def train(rank, world_size):
     setup(rank, world_size)
     torch.manual_seed(0)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        torch.cuda.set_device(rank)
+
+    # dataset and dataloader
     transform = transforms.ToTensor()
-    dataset = datasets.FashionMNIST(root='data', train=True, download=True, transform=transform)
+    download = True if rank == 0 else False
+    dataset = datasets.FashionMNIST(root='data', train=True, download=download, transform=transform)
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
     dataloader = DataLoader(dataset, batch_size=64, sampler=sampler)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # model, loss, optimizer
     model = SimpleCNN().to(device)
-    ddp_model = DDP(model)
-
-    criterion = nn.CrossEntropyLoss()
+    ddp_model = DDP(model, device_ids=None if device.type == "cpu" else [rank])
+    loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(ddp_model.parameters(), lr=0.001)
 
+    # loop for training
     print(f"[Rank {rank}] Starting training...")
     for epoch in range(1):
         ddp_model.train()
@@ -63,16 +79,21 @@ def train(rank, world_size):
             images, labels = images.to(device), labels.to(device)
 
             optimizer.zero_grad()
-            output = ddp_model(images)
-            loss = criterion(output, labels)
+            outputs = ddp_model(images)
+            loss = loss_fn(outputs, labels)
             loss.backward()
             optimizer.step()
+
             total_loss += loss.item()
-        print(f"[Rank {rank}] Epoch {epoch+1} Loss: {total_loss:.4f}")
+            if batch_idx % 100 == 0:
+                print(f"[Rank {rank}] Batch {batch_idx}: Loss = {loss.item():.4f}")
+
+        print(f"[Rank {rank}] Epoch {epoch+1} completed. Total Loss: {total_loss:.4f}")
+
     cleanup()
 
 if __name__ == "__main__":
     import sys
-    rank = int(sys.argv[1])
+    rank = int(sys.argv[1])  # 0 or 1
     world_size = 2
     train(rank, world_size)
