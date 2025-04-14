@@ -11,15 +11,13 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 # setup and cleanup for distributed training
 def setup(rank, world_size):
-    print(f"[Rank {rank}] Setting up process group... (before)")
+    print(f"[Rank {rank}] Setting up process group...")
     dist.init_process_group(
         backend="gloo",
-        init_method="tcp://20.81.150.5:29501", 
-        rank=rank,
-        world_size=world_size,
+        init_method="env://",
         timeout=datetime.timedelta(seconds=60)
     )
-    print(f"[Rank {rank}] Process group initialized. (after)")
+    print(f"[Rank {rank}] Process group initialized.")
 
 def cleanup():
     dist.destroy_process_group()
