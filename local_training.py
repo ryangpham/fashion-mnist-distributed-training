@@ -10,12 +10,10 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 # setup and cleanup for distributed training
 def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = '20.81.150.5'
-    os.environ['MASTER_PORT'] = '29501'
-
     print(f"[Rank {rank}] Setting up process group...")
     dist.init_process_group(
         backend="gloo",
+        init_method='tcp://20.81.150.5:29501',
         rank=rank,
         world_size=world_size,
         timeout=datetime.timedelta(seconds=60)
@@ -65,7 +63,7 @@ def train(rank, world_size):
 
     # model, loss, optimizer
     model = SimpleCNN().to(device)
-    ddp_model = DDP(model, device_ids=None if device.type == "cpu" else [rank])
+    ddp_model = DDP(model, device_ids=None)
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(ddp_model.parameters(), lr=0.001)
 
