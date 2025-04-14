@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 # setup and cleanup for distributed training
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = '20.81.150.5'
-    os.environ['MASTER_PORT'] = '29500'
+    os.environ['MASTER_PORT'] = '29501'
 
     print(f"[Rank {rank}] Setting up process group...")
     dist.init_process_group(
