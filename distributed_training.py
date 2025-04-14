@@ -67,10 +67,11 @@ def train(rank, world_size):
 
     # loop for training the model
     print(f"[Rank {rank}] Starting training...")
-    for epoch in range(1):  # Increase if needed
+    for epoch in range(1):
         ddp_model.train()
         sampler.set_epoch(epoch)
         total_loss = 0
+        start_time = time.time() 
 
         for batch_idx, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
@@ -85,7 +86,8 @@ def train(rank, world_size):
             if batch_idx % 100 == 0:
                 print(f"[Rank {rank}] Batch {batch_idx}: Loss = {loss.item():.4f}")
 
-        print(f"[Rank {rank}] Epoch {epoch+1} completed. Total Loss: {total_loss:.4f}")
+        epoch_time = time.time() - start_time
+        print(f"[Rank {rank}] Epoch completed in {epoch_time:.2f} seconds. Total Loss: {total_loss:.4f}")
 
     cleanup()
 
