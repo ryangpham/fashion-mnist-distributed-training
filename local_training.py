@@ -1,15 +1,15 @@
 import os
 import torch
-import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
 
-def setup(rank, world_size, master_addr, master_port):
-    os.environ['MASTER_ADDR'] = master_addr
-    os.environ['MASTER_PORT'] = master_port
+def setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = '20.81.150.5'  # IP of master node
+    os.environ['MASTER_PORT'] = '22'
     dist.init_process_group("gloo", rank=rank, world_size=world_size)
 
 def cleanup():
@@ -37,40 +37,40 @@ class SimpleCNN(nn.Module):
         return self.fc(self.conv(x))
 
 def train(rank, world_size):
-    setup(rank, world_size, master_addr="20.81.150.5", master_port="29500")  # update with real IP and port
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    setup(rank, world_size)
+    torch.manual_seed(0)
 
     transform = transforms.ToTensor()
-    dataset = datasets.FashionMNIST(root='data', train=True, transform=transform, download=True)
+    dataset = datasets.FashionMNIST(root='data', train=True, download=True, transform=transform)
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
     dataloader = DataLoader(dataset, batch_size=64, sampler=sampler)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleCNN().to(device)
-    model = DDP(model)
+    ddp_model = DDP(model)
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(ddp_model.parameters(), lr=0.001)
 
-    model.train()
+    print(f"[Rank {rank}] Starting training...")
     for epoch in range(1):
+        ddp_model.train()
         sampler.set_epoch(epoch)
         total_loss = 0
-        for batch, (images, labels) in enumerate(dataloader):
+        for batch_idx, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
+
             optimizer.zero_grad()
-            output = model(images)
-            loss = loss_fn(output, labels)
+            output = ddp_model(images)
+            loss = criterion(output, labels)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-
         print(f"[Rank {rank}] Epoch {epoch+1} Loss: {total_loss:.4f}")
-
     cleanup()
 
 if __name__ == "__main__":
     import sys
-    rank = int(sys.argv[1])  # 0 for master node, 1 for worker node
+    rank = int(sys.argv[1])
     world_size = 2
     train(rank, world_size)
