@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import torch
 import torch.nn as nn
@@ -7,27 +8,23 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
-import time
 
 # setup and cleanup for distributed training
 def setup(rank, world_size):
     print(f"[Rank {rank}] Setting up process group... (before)")
-    try:
-        dist.init_process_group(
-            backend="gloo",
-            init_method='tcp://20.81.150.5:29501',
-            rank=rank,
-            world_size=world_size,
-            timeout=datetime.timedelta(seconds=60)
-        )
-        print(f"[Rank {rank}] Process group initialized. (after)")
-    except Exception as e:
-        print(f"[Rank {rank}] Error during init_process_group: {e}")
+    dist.init_process_group(
+        backend="gloo",
+        init_method="tcp://20.81.150.5:29501", 
+        rank=rank,
+        world_size=world_size,
+        timeout=datetime.timedelta(seconds=60)
+    )
+    print(f"[Rank {rank}] Process group initialized. (after)")
 
 def cleanup():
     dist.destroy_process_group()
 
-# defining model
+# define a 2D CNN model
 class SimpleCNN(nn.Module):
     def __init__(self):
         super().__init__()
@@ -49,10 +46,8 @@ class SimpleCNN(nn.Module):
     def forward(self, x):
         return self.fc(self.conv(x))
 
-# training model
+# function for training model
 def train(rank, world_size):
-    if rank == 1:
-        time.sleep(10)
     setup(rank, world_size)
     torch.manual_seed(0)
 
@@ -60,25 +55,25 @@ def train(rank, world_size):
     if device.type == "cuda":
         torch.cuda.set_device(rank)
 
-    # dataset and dataloader
+    # dataset setup
     transform = transforms.ToTensor()
-    download = True if rank == 0 else False
-    dataset = datasets.FashionMNIST(root='data', train=True, download=download, transform=transform)
+    dataset = datasets.FashionMNIST(root='data', train=True, download=False, transform=transform)
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
     dataloader = DataLoader(dataset, batch_size=64, sampler=sampler)
 
-    # model, loss, optimizer
+    # model setup
     model = SimpleCNN().to(device)
     ddp_model = DDP(model, device_ids=None)
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(ddp_model.parameters(), lr=0.001)
 
-    # loop for training
+    # loop for training the model
     print(f"[Rank {rank}] Starting training...")
-    for epoch in range(1):
+    for epoch in range(1):  # Increase if needed
         ddp_model.train()
         sampler.set_epoch(epoch)
         total_loss = 0
+
         for batch_idx, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
 
@@ -97,7 +92,6 @@ def train(rank, world_size):
     cleanup()
 
 if __name__ == "__main__":
-    import sys
-    rank = int(sys.argv[1])  # 0 or 1
-    world_size = 2
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
     train(rank, world_size)
