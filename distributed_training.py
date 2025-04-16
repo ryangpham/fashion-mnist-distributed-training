@@ -10,7 +10,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
 
 # setup and cleanup for distributed training
-def setup(rank, world_size):
+def setup(rank):
     print(f"[Rank {rank}] Setting up process group...")
     dist.init_process_group(
         backend="gloo",
@@ -88,6 +88,11 @@ def train(rank, world_size):
 
         epoch_time = time.time() - start_time
         print(f"[Rank {rank}] Epoch completed in {epoch_time:.2f} seconds. Total Loss: {total_loss:.4f}")
+
+    if rank == 0:  # Only save from rank 0 to avoid overwriting
+        save_path = "model.pth"
+        torch.save(model.state_dict(), save_path)
+        print(f"[Rank {rank}] Model saved to {save_path}")
 
     cleanup()
 
