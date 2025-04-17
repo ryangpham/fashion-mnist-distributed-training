@@ -14,9 +14,7 @@ def setup(rank, world_size):
     print(f"[Rank {rank}] Setting up process group...", flush=True)
     dist.init_process_group(
         backend="gloo",
-        init_method="tcp://10.1.0.4:29501",
-        rank=rank,
-        world_size=world_size,
+        init_method="env://",
         timeout=datetime.timedelta(seconds=60)
     )
     print(f"[Rank {rank}] Process group initialized.", flush=True)
@@ -101,11 +99,9 @@ def train(rank, world_size):
 
     cleanup()
 
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--rank", type=int, required=True)
-    parser.add_argument("--world_size", type=int, required=True)
-    args = parser.parse_args()
 
-    train(args.rank, args.world_size)
+if __name__ == "__main__":
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+    print(f"[Rank {rank}] Process started with world_size={world_size}", flush=True)
+    train(rank, world_size)
