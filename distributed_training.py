@@ -11,13 +11,13 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 # setup and cleanup for distributed training
 def setup(rank, world_size):
-    print(f"[Rank {rank}] Setting up process group...")
+    print(f"[Rank {rank}] Setting up process group...", flush=True)
     dist.init_process_group(
         backend="gloo",
         init_method="env://",
         timeout=datetime.timedelta(seconds=60)
     )
-    print(f"[Rank {rank}] Process group initialized.")
+    print(f"[Rank {rank}] Process group initialized.", flush=True)
 
 def cleanup():
     dist.destroy_process_group()
@@ -65,13 +65,13 @@ def train(rank, world_size):
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(ddp_model.parameters(), lr=0.001)
 
-    # loop for training the model
-    print(f"[Rank {rank}] Starting training...")
+    print(f"[Rank {rank}] Starting training...", flush=True)
+
     for epoch in range(10):
         ddp_model.train()
         sampler.set_epoch(epoch)
         total_loss = 0
-        start_time = time.time() 
+        start_time = time.time()
 
         for batch_idx, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
@@ -84,19 +84,20 @@ def train(rank, world_size):
 
             total_loss += loss.item()
             if batch_idx % 100 == 0:
-                print(f"[Rank {rank}] Batch {batch_idx}: Loss = {loss.item():.4f}")
+                print(f"[Rank {rank}] Batch {batch_idx}: Loss = {loss.item():.4f}", flush=True)
 
         epoch_time = time.time() - start_time
-        print(f"[Rank {rank}] Epoch completed in {epoch_time:.2f} seconds. Total Loss: {total_loss:.4f}")
+        print(f"[Rank {rank}] Epoch {epoch+1} completed in {epoch_time:.2f} seconds. Total Loss: {total_loss:.4f}", flush=True)
 
-    if rank == 0:  # Only save from rank 0 to avoid overwriting
+    if rank == 0:
         save_path = "model.pth"
         torch.save(model.state_dict(), save_path)
-        print(f"[Rank {rank}] Model saved to {save_path}")
+        print(f"[Rank {rank}] Model saved to {save_path}", flush=True)
 
     cleanup()
 
 if __name__ == "__main__":
     rank = int(os.environ["RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
+    print(f"[Rank {rank}] Process started with world_size={world_size}", flush=True)
     train(rank, world_size)
