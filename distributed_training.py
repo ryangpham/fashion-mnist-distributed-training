@@ -10,7 +10,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
 
 # setup and cleanup for distributed training
-def setup(rank, world_rank):
+def setup(rank, world_size):
     print(f"[Rank {rank}] Setting up process group...")
     dist.init_process_group(
         backend="gloo",
@@ -67,7 +67,7 @@ def train(rank, world_size):
 
     # loop for training the model
     print(f"[Rank {rank}] Starting training...")
-    for epoch in range(1):
+    for epoch in range(10):
         ddp_model.train()
         sampler.set_epoch(epoch)
         total_loss = 0
