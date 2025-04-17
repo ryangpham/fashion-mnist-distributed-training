@@ -21,6 +21,9 @@ def setup(rank, world_size):
     )
     print(f"[Rank {rank}] Process group initialized.", flush=True)
 
+    dist.barrier()
+    print(f"[Rank {rank}] Barrier passed. Ready to train.", flush=True)
+
 def cleanup():
     dist.destroy_process_group()
 
