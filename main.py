@@ -21,6 +21,10 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
+@app.get("/")
+def root():
+    return {"hello": "world"}
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     image = None
