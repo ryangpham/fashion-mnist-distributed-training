@@ -15,6 +15,8 @@ def setup(rank, world_size):
     dist.init_process_group(
         backend="gloo",
         init_method="tcp://10.1.0.4:29501",
+        rank=rank,
+        world_size=world_size,
         timeout=datetime.timedelta(seconds=60)
     )
     print(f"[Rank {rank}] Process group initialized.", flush=True)
