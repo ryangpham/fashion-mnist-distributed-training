@@ -10,7 +10,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
 
 # setup and cleanup for distributed training
-def setup(rank):
+def setup(rank, world_rank):
     print(f"[Rank {rank}] Setting up process group...")
     dist.init_process_group(
         backend="gloo",
