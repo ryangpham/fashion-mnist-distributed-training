@@ -103,55 +103,54 @@ def train():
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     if rank == 0:
-        with mlflow.start_run():
-            mlflow.log_params({
-                "learning_rate": args.learning_rate,
-                "epochs": args.epochs,
-                "batch_size": args.batch_size
-            })
+        mlflow.log_params({
+            "learning_rate": args.learning_rate,
+            "epochs": args.epochs,
+            "batch_size": args.batch_size
+        })
 
-            for epoch in range(args.epochs):
-                model.train()
-                if sampler:
-                    sampler.set_epoch(epoch)
+        for epoch in range(args.epochs):
+            model.train()
+            if sampler:
+                sampler.set_epoch(epoch)
 
-                total_loss = 0
-                correct = 0
-                total = 0
-                start_time = time.time()
+            total_loss = 0
+            correct = 0
+            total = 0
+            start_time = time.time()
 
-                for batch_idx, (images, labels) in enumerate(dataloader):
-                    images, labels = images.to(device), labels.to(device)
+            for batch_idx, (images, labels) in enumerate(dataloader):
+                images, labels = images.to(device), labels.to(device)
 
-                    optimizer.zero_grad()
-                    outputs = model(images)
-                    loss = loss_fn(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
+                optimizer.zero_grad()
+                outputs = model(images)
+                loss = loss_fn(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
-                    total_loss += loss.item()
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
+                total_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
 
-                    if batch_idx % 100 == 0:
-                        print(f"[Rank {rank}] Epoch {epoch+1}, Batch {batch_idx}: Loss = {loss.item():.4f}", flush=True)
+                if batch_idx % 100 == 0:
+                    print(f"[Rank {rank}] Epoch {epoch+1}, Batch {batch_idx}: Loss = {loss.item():.4f}", flush=True)
 
-                epoch_loss = total_loss / len(dataloader)
-                epoch_acc = 100.0 * correct / total
-                epoch_time = time.time() - start_time
+            epoch_loss = total_loss / len(dataloader)
+            epoch_acc = 100.0 * correct / total
+            epoch_time = time.time() - start_time
 
-                print(f"[Rank {rank}] Epoch {epoch+1}/{args.epochs} - Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%, Time: {epoch_time:.2f}s", flush=True)
+            print(f"[Rank {rank}] Epoch {epoch+1}/{args.epochs} - Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%, Time: {epoch_time:.2f}s", flush=True)
 
-                mlflow.log_metric("train_loss", epoch_loss, step=epoch+1)
-                mlflow.log_metric("train_accuracy", epoch_acc, step=epoch+1)
-                mlflow.log_metric("epoch_time", epoch_time, step=epoch+1)
+            mlflow.log_metric("train_loss", epoch_loss, step=epoch+1)
+            mlflow.log_metric("train_accuracy", epoch_acc, step=epoch+1)
+            mlflow.log_metric("epoch_time", epoch_time, step=epoch+1)
 
-            os.makedirs(args.output_dir, exist_ok=True)
-            save_path = os.path.join(args.output_dir, "model.pth")
-            torch.save(model.module.state_dict() if isinstance(model, DDP) else model.state_dict(), save_path)
-            mlflow.log_artifact(save_path)
-            print(f"[Rank {rank}] Model saved to {save_path}", flush=True)
+        os.makedirs(args.output_dir, exist_ok=True)
+        save_path = os.path.join(args.output_dir, "model.pth")
+        torch.save(model.module.state_dict() if isinstance(model, DDP) else model.state_dict(), save_path)
+        mlflow.log_artifact(save_path)
+        print(f"[Rank {rank}] Model saved to {save_path}", flush=True)
     else:
         # Workers still need to train even if they don't log
         for epoch in range(args.epochs):

@@ -38,7 +38,7 @@ except Exception:
 # Define training environment
 custom_env = Environment(
     name="training-env",
-    version="5",
+    version="7",
     description="Custom environment for PyTorch training",
     conda_file="conda.yaml",
     image="mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest"

@@ -41,94 +41,93 @@ class SimpleCNN(nn.Module):
 def train():
     args = parse_args()
     
-    with mlflow.start_run():
-        # Log the parameters using MLflow
-        mlflow.log_params({
-            "learning_rate": args.learning_rate,
-            "epochs": args.epochs,
-            "batch_size": args.batch_size
-        })
+    # Log the parameters using MLflow
+    mlflow.log_params({
+        "learning_rate": args.learning_rate,
+        "epochs": args.epochs,
+        "batch_size": args.batch_size
+    })
+    
+    # Set device (cpu vms only)
+    device = torch.device("cpu")
+    print(f"Using device: {device}")
+    
+    # Define data transformations
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
+    
+    # Load dataset
+    print(f"downloading dataset...")
+    dataset = datasets.FashionMNIST(
+        root=args.data_dir, 
+        train=True, 
+        download=True,
+        transform=transform
+    )
+    
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=args.batch_size, 
+        shuffle=True
+    )
+    
+    # Create model
+    model = SimpleCNN().to(device)
+    
+    # Define loss function and optimizer
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    
+    print(f"Starting training for {args.epochs} epochs...")
+    
+    for epoch in range(args.epochs):
+        model.train()
         
-        # Set device (cpu vms only)
-        device = torch.device("cpu")
-        print(f"Using device: {device}")
+        total_loss = 0
+        correct = 0
+        total = 0
+        start_time = time.time()
         
-        # Define data transformations
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ])
-        
-        # Load dataset
-        print(f"downloading dataset...")
-        dataset = datasets.FashionMNIST(
-            root=args.data_dir, 
-            train=True, 
-            download=True,
-            transform=transform
-        )
-        
-        dataloader = DataLoader(
-            dataset, 
-            batch_size=args.batch_size, 
-            shuffle=True
-        )
-        
-        # Create model
-        model = SimpleCNN().to(device)
-        
-        # Define loss function and optimizer
-        loss_fn = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-        
-        print(f"Starting training for {args.epochs} epochs...")
-        
-        for epoch in range(args.epochs):
-            model.train()
+        for batch_idx, (images, labels) in enumerate(dataloader):
+            images, labels = images.to(device), labels.to(device)
             
-            total_loss = 0
-            correct = 0
-            total = 0
-            start_time = time.time()
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = loss_fn(outputs, labels)
+            loss.backward()
+            optimizer.step()
             
-            for batch_idx, (images, labels) in enumerate(dataloader):
-                images, labels = images.to(device), labels.to(device)
-                
-                optimizer.zero_grad()
-                outputs = model(images)
-                loss = loss_fn(outputs, labels)
-                loss.backward()
-                optimizer.step()
-                
-                total_loss += loss.item()
-                
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-                
-                if batch_idx % 100 == 0:
-                    print(f"Epoch {epoch+1}, Batch {batch_idx}: Loss = {loss.item():.4f}")
+            total_loss += loss.item()
             
-            # Calculate epoch statistics
-            epoch_loss = total_loss / len(dataloader)
-            epoch_acc = 100.0 * correct / total
-            epoch_time = time.time() - start_time
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
             
-            print(f"Epoch {epoch+1}/{args.epochs} - "
-                f"Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%, "
-                f"Time: {epoch_time:.2f} seconds")
-            
-            # Log metrics using MLflow instead of run.log
-            mlflow.log_metric('epoch', epoch+1)
-            mlflow.log_metric('train_loss', epoch_loss)
-            mlflow.log_metric('train_accuracy', epoch_acc)
-            mlflow.log_metric('epoch_time', epoch_time)
+            if batch_idx % 100 == 0:
+                print(f"Epoch {epoch+1}, Batch {batch_idx}: Loss = {loss.item():.4f}")
         
-        # Save model
-        os.makedirs(args.output_dir, exist_ok=True)
-        save_path = os.path.join(args.output_dir, "model.pth")
-        torch.save(model.state_dict(), save_path)
-        print(f"Model saved to {save_path}")
+        # Calculate epoch statistics
+        epoch_loss = total_loss / len(dataloader)
+        epoch_acc = 100.0 * correct / total
+        epoch_time = time.time() - start_time
+        
+        print(f"Epoch {epoch+1}/{args.epochs} - "
+            f"Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%, "
+            f"Time: {epoch_time:.2f} seconds")
+        
+        # Log metrics using MLflow instead of run.log
+        mlflow.log_metric('epoch', epoch+1)
+        mlflow.log_metric('train_loss', epoch_loss)
+        mlflow.log_metric('train_accuracy', epoch_acc)
+        mlflow.log_metric('epoch_time', epoch_time)
+    
+    # Save model
+    os.makedirs(args.output_dir, exist_ok=True)
+    save_path = os.path.join(args.output_dir, "model.pth")
+    torch.save(model.state_dict(), save_path)
+    print(f"Model saved to {save_path}")
 
 if __name__ == "__main__":
     train()

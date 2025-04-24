@@ -10,4 +10,5 @@ dependencies:
   - pip:
     - azure-ai-ml
     - azure-cli
+    - azureml-mlflow
     - mlflow
