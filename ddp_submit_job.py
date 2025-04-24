@@ -54,9 +54,6 @@ job = command(
     code=".",
     command="python distributed_training.py --data-dir ./data --output-dir ${{outputs.output_dir}} --epochs 10 --batch-size 64 --learning-rate 0.001",
     environment=env,
-    inputs={
-        "data-dir": "./data"
-    },
     outputs={
         "output_dir": Output(type=AssetTypes.URI_FOLDER)
     },
