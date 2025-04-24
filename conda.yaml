@@ -1,0 +1,13 @@
+name: pytorch-env
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10.6
+  - pip=25.0.1
+  - pytorch
+  - torchvision
+  - pip:
+    - azure-ai-ml
+    - azure-cli
+    - mlflow
