@@ -47,7 +47,6 @@ custom_env = Environment(
 env = ml_client.environments.create_or_update(custom_env)
 
 job = command(
-    name="distributed-pytorch-training",
     description="Distributed training with PyTorch and MPI",
     display_name="pytorch-distributed-job",
     experiment_name="distributed-pytorch-training",
