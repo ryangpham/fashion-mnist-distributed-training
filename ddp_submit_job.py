@@ -11,7 +11,7 @@ credential = DefaultAzureCredential()
 
 ml_client = MLClient(
     subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
-    resource_group=os.environ["AZURE_RESOURCE_GROUP"],
+    resource_group_name=os.environ["AZURE_RESOURCE_GROUP"],
     workspace_name=os.environ["AZURE_WORKSPACE_NAME"],
     credential=credential
 )
@@ -29,8 +29,8 @@ except Exception:
     compute = AmlCompute(
         name=cluster_name,
         vm_size=vm_size,
-        min_nodes=0,
-        max_nodes=2,
+        min_instances=0,
+        max_instances=2,
         idle_seconds_before_scaledown=1200
     )
     ml_client.compute.begin_create_or_update(compute).result()
